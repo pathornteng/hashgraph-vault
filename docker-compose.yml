@@ -1,0 +1,37 @@
+services:
+  vault:
+    image: hashicorp/vault:1.17  # secp256k1 Transit key type requires Vault 1.10+
+    ports:
+      - "8200:8200"
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: "root"
+      VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
+    cap_add:
+      - IPC_LOCK
+  # backend:
+  #   build: ./backend
+  #   ports:
+  #     - "4000:4000"
+  #   environment:
+  #     VAULT_ADDR: http://vault:8200
+  #     VAULT_TOKEN: root
+  #     HEDERA_NETWORK: testnet
+  #     OPERATOR_ID: ${OPERATOR_ID}
+  #     OPERATOR_VAULT_KEY: ${OPERATOR_VAULT_KEY}
+  #     ADMIN_TOKEN: ${ADMIN_TOKEN}
+  #     PORT: 4000
+  #     NODE_ENV: development
+  #   depends_on:
+  #     - vault
+  #   volumes:
+  #     - ./backend/data:/app/data
+
+  # frontend:
+  #   build: ./frontend
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     VITE_API_URL: http://localhost:4000
+  #     VITE_ADMIN_TOKEN: ${ADMIN_TOKEN}
+  #   depends_on:
+  #     - backend
