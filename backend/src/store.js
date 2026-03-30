@@ -29,6 +29,13 @@ module.exports = {
     store.accounts.push(account);
     saveStore(store);
   },
+  removeAccount: (id) => {
+    const idx = store.accounts.findIndex((a) => a.accountId === id);
+    if (idx === -1) return false;
+    store.accounts.splice(idx, 1);
+    saveStore(store);
+    return true;
+  },
   getTransactions: () => store.transactions,
   addTransaction: (tx) => {
     store.transactions.unshift(tx);

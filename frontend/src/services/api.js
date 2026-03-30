@@ -2,11 +2,28 @@ import axios from 'axios';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '',
-  headers: {
-    'Content-Type': 'application/json',
-    'x-admin-token': import.meta.env.VITE_ADMIN_TOKEN || '',
-  },
+  headers: { 'Content-Type': 'application/json' },
 });
+
+export function setAuthToken(token) {
+  if (token) {
+    api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+  } else {
+    delete api.defaults.headers.common['Authorization'];
+  }
+}
+
+// Redirect to /login on 401
+api.interceptors.response.use(null, (err) => {
+  if (err.response?.status === 401) {
+    window.location.href = '/login';
+  }
+  return Promise.reject(err);
+});
+
+// Auth
+export const login = (username, password) =>
+  api.post('/api/auth/login', { username, password }).then((r) => r.data);
 
 // Keys
 export const listKeys = () => api.get('/api/keys').then((r) => r.data.keys);
@@ -21,6 +38,7 @@ export const createAccount = (vaultKeyName, initialBalance = 1) =>
   api.post('/api/accounts', { vaultKeyName, initialBalance }).then((r) => r.data);
 export const getAccountBalance = (id) =>
   api.get(`/api/accounts/${id}/balance`).then((r) => r.data);
+export const deleteAccount = (id) => api.delete(`/api/accounts/${id}`);
 
 // Transactions
 export const listTransactions = () =>

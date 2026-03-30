@@ -7,7 +7,9 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://localhost:4000',
+        // In Docker, BACKEND_URL points to the backend service name.
+        // In local dev (no env var), falls back to localhost.
+        target: process.env.BACKEND_URL || 'http://localhost:4000',
         changeOrigin: true,
       },
     },

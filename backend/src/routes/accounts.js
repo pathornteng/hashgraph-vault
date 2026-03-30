@@ -52,6 +52,13 @@ router.get('/:id', (req, res) => {
   res.json(account);
 });
 
+// DELETE /api/accounts/:id — remove account from local store
+router.delete('/:id', (req, res) => {
+  const removed = store.removeAccount(req.params.id);
+  if (!removed) return res.status(404).json({ error: 'Account not found' });
+  res.json({ success: true });
+});
+
 // GET /api/accounts/:id/balance — fetch live balance from Hedera
 router.get('/:id/balance', async (req, res, next) => {
   try {

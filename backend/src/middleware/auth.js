@@ -1,12 +1,21 @@
-function auth(req, res, next) {
-  const token = process.env.ADMIN_TOKEN;
-  if (!token) return next();
+const jwt = require('jsonwebtoken');
 
-  const provided = req.headers['x-admin-token'];
-  if (provided !== token) {
+function auth(req, res, next) {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) return next(); // JWT not configured — open access (dev fallback)
+
+  const header = req.headers['authorization'];
+  if (!header || !header.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  next();
+
+  const token = header.slice(7);
+  try {
+    req.user = jwt.verify(token, secret);
+    next();
+  } catch {
+    res.status(401).json({ error: 'Invalid or expired token' });
+  }
 }
 
 module.exports = auth;

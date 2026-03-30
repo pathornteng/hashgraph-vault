@@ -206,4 +206,16 @@ async function deleteKey(name) {
   await vaultClient.delete(`/v1/transit/keys/${name}`);
 }
 
-module.exports = { listKeys, createKey, getKeyInfo, getPublicKey, sign, deleteKey };
+const ADMIN_KV_DATA = 'secret/data/admin-users';
+
+async function getAdminCredentials(username) {
+  try {
+    const res = await vaultClient.get(`/v1/${ADMIN_KV_DATA}/${username}`);
+    return res.data.data.data; // KV v2 wraps payload in data.data
+  } catch (err) {
+    if (is404(err)) return null;
+    throw err;
+  }
+}
+
+module.exports = { listKeys, createKey, getKeyInfo, getPublicKey, sign, deleteKey, getAdminCredentials };

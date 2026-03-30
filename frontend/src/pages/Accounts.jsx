@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { listAccounts, listKeys, createAccount, getAccountBalance, getOperatorInfo } from '../services/api';
+import { listAccounts, listKeys, createAccount, deleteAccount, getAccountBalance, getOperatorInfo } from '../services/api';
 import Modal from '../components/Modal';
 
 export default function Accounts() {
@@ -17,8 +17,12 @@ export default function Accounts() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
 
+  const network = import.meta.env.VITE_HEDERA_NETWORK || 'testnet';
+  const hashscanUrl = (accountId) => `https://hashscan.io/${network}/account/${accountId}`;
+
   const [balances, setBalances] = useState({});
   const [fetchingBalances, setFetchingBalances] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
   async function fetchAllBalances(accs) {
     setFetchingBalances(true);
@@ -79,6 +83,20 @@ export default function Accounts() {
     }
   }
 
+  async function handleDelete(accountId) {
+    if (!window.confirm(`Remove account ${accountId} from the local store?`)) return;
+    setDeletingId(accountId);
+    try {
+      await deleteAccount(accountId);
+      setAccounts((prev) => prev.filter((a) => a.accountId !== accountId));
+      setBalances((prev) => { const next = { ...prev }; delete next[accountId]; return next; });
+    } catch (e) {
+      alert(e.response?.data?.error || e.message);
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   async function handleRefreshBalance(accountId) {
     setBalances((prev) => ({ ...prev, [accountId]: null }));
     try {
@@ -122,7 +140,7 @@ export default function Accounts() {
         ) : (
           <div className="flex items-center justify-between">
             <div>
-              <p className="font-mono text-sm text-gray-200">{operator.accountId}</p>
+              <a href={hashscanUrl(operator.accountId)} target="_blank" rel="noopener noreferrer" className="font-mono text-sm text-indigo-400 hover:underline">{operator.accountId}</a>
               <p className="text-xs text-gray-500 mt-0.5">
                 Key: {operator.keySource === 'vault' ? `Vault — ${operator.vaultKeyName}` : 'Private key'}
               </p>
@@ -155,7 +173,7 @@ export default function Accounts() {
           return (
             <div key={account.accountId} className="bg-gray-800 rounded-lg px-4 py-3 flex items-center justify-between">
               <div>
-                <p className="font-mono text-sm text-gray-200">{account.accountId}</p>
+                <a href={hashscanUrl(account.accountId)} target="_blank" rel="noopener noreferrer" className="font-mono text-sm text-indigo-400 hover:underline">{account.accountId}</a>
                 <p className="text-xs text-gray-500 mt-0.5">Vault key: {account.vaultKeyName}</p>
               </div>
               <div className="flex items-center gap-3">
@@ -177,6 +195,14 @@ export default function Accounts() {
                   title="Refresh balance"
                 >
                   ↻
+                </button>
+                <button
+                  onClick={() => handleDelete(account.accountId)}
+                  disabled={deletingId === account.accountId}
+                  className="text-gray-600 hover:text-red-400 text-sm disabled:opacity-40"
+                  title="Remove account"
+                >
+                  {deletingId === account.accountId ? '…' : '✕'}
                 </button>
               </div>
             </div>
