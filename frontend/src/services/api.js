@@ -27,8 +27,9 @@ export const login = (username, password) =>
 
 // Keys
 export const listKeys = () => api.get('/api/keys').then((r) => r.data.keys);
-export const createKey = (name, type = 'ed25519') => api.post('/api/keys', { name, type }).then((r) => r.data);
+export const createKey = (name, type = 'ed25519', exportable = false) => api.post('/api/keys', { name, type, exportable }).then((r) => r.data);
 export const getKeyDetail = (name) => api.get(`/api/keys/${name}`).then((r) => r.data);
+export const exportKey = (name) => api.get(`/api/keys/${name}/export`).then((r) => r.data);
 export const deleteKey = (name) => api.delete(`/api/keys/${name}`);
 
 // Accounts

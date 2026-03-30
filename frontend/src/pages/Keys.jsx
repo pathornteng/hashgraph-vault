@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { listKeys, createKey, getKeyDetail, deleteKey } from '../services/api';
+import { listKeys, createKey, getKeyDetail, deleteKey, exportKey } from '../services/api';
 import Modal from '../components/Modal';
 
 const TYPE_BADGE = {
@@ -15,10 +15,13 @@ export default function Keys() {
   const [showCreate, setShowCreate] = useState(false);
   const [newKeyName, setNewKeyName] = useState('');
   const [newKeyType, setNewKeyType] = useState('ed25519');
+  const [newKeyExportable, setNewKeyExportable] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
 
   const [pubKeyModal, setPubKeyModal] = useState(null);
+  const [exportModal, setExportModal] = useState(null); // { name, type, privateKey } | null
+  const [exporting, setExporting] = useState(null); // key name being exported
 
   async function load() {
     setLoading(true);
@@ -48,14 +51,27 @@ export default function Keys() {
     setCreateError('');
     setCreating(true);
     try {
-      await createKey(newKeyName.trim(), newKeyType);
+      await createKey(newKeyName.trim(), newKeyType, newKeyExportable);
       setNewKeyName('');
+      setNewKeyExportable(false);
       setShowCreate(false);
       await load();
     } catch (e) {
       setCreateError(e.response?.data?.error || e.message);
     } finally {
       setCreating(false);
+    }
+  }
+
+  async function handleExport(key) {
+    setExporting(key.name);
+    try {
+      const data = await exportKey(key.name);
+      setExportModal(data);
+    } catch (e) {
+      alert(e.response?.data?.error || e.message);
+    } finally {
+      setExporting(null);
     }
   }
 
@@ -107,6 +123,15 @@ export default function Keys() {
               >
                 View Public Key
               </button>
+              {k.exportable && (
+                <button
+                  onClick={() => handleExport(k)}
+                  disabled={exporting === k.name}
+                  className="text-xs px-3 py-1 rounded bg-amber-700 hover:bg-amber-600 disabled:opacity-50 text-white"
+                >
+                  {exporting === k.name ? '…' : 'Export'}
+                </button>
+              )}
               <button
                 onClick={() => handleDelete(k.name)}
                 className="text-xs px-3 py-1 rounded bg-red-800 hover:bg-red-700 text-white"
@@ -144,6 +169,21 @@ export default function Keys() {
                 <option value="ecdsa">ECDSA (secp256k1)</option>
               </select>
             </div>
+            {newKeyType === 'ed25519' && (
+              <div className="flex items-start gap-3">
+                <input
+                  id="exportable"
+                  type="checkbox"
+                  checked={newKeyExportable}
+                  onChange={(e) => setNewKeyExportable(e.target.checked)}
+                  className="mt-0.5 accent-indigo-500"
+                />
+                <label htmlFor="exportable" className="text-sm text-gray-300 cursor-pointer">
+                  Allow private key export
+                  <p className="text-xs text-amber-400 mt-0.5">Cannot be changed after creation. Only enable if you need to back up or migrate this key.</p>
+                </label>
+              </div>
+            )}
             {createError && <p className="text-red-400 text-sm">{createError}</p>}
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 text-sm text-gray-400 hover:text-white">Cancel</button>
@@ -152,6 +192,31 @@ export default function Keys() {
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {exportModal && (
+        <Modal title={`Export Private Key — ${exportModal.name}`} onClose={() => setExportModal(null)}>
+          <div className="space-y-4">
+            <div className="flex items-start gap-2 bg-amber-950 border border-amber-700 rounded p-3">
+              <span className="text-amber-400 text-lg leading-none">⚠</span>
+              <p className="text-xs text-amber-300">
+                This is the raw private key. Anyone with this value can sign transactions on behalf of the associated Hedera account. Store it securely and never share it.
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 mb-1">Private Key (hex) — {exportModal.type}</p>
+              <p className="font-mono text-xs break-all bg-gray-900 p-3 rounded text-amber-300 select-all">{exportModal.privateKey}</p>
+            </div>
+            <div className="flex justify-end">
+              <button
+                onClick={() => { navigator.clipboard.writeText(exportModal.privateKey); }}
+                className="text-xs px-3 py-1.5 rounded bg-gray-700 hover:bg-gray-600 text-white"
+              >
+                Copy to clipboard
+              </button>
+            </div>
+          </div>
         </Modal>
       )}
 

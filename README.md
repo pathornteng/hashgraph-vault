@@ -47,7 +47,7 @@ Browser → React UI → Express Backend → HashiCorp Vault
 ### 1. Start Vault
 
 ```bash
-./vault-only.sh -d
+docker compose up vault -d
 ```
 
 ### 2. Run the one-time setup

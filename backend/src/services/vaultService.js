@@ -88,12 +88,29 @@ async function listKeys() {
   return [...transit, ...ecdsa];
 }
 
-async function createKey(name, type = 'ed25519') {
+async function createKey(name, type = 'ed25519', exportable = false) {
   if (type === 'ecdsa') {
     return createEcdsaKvKey(name);
   }
-  await vaultClient.post(`/v1/transit/keys/${name}`, { type: 'ed25519' });
+  await vaultClient.post(`/v1/transit/keys/${name}`, { type: 'ed25519', exportable });
   keyTypeCache.set(name, 'ed25519');
+}
+
+async function exportKey(name) {
+  const keyType = await getKeyType(name);
+
+  if (keyType === 'secp256k1') {
+    const kv = await getEcdsaKvData(name);
+    return { type: 'secp256k1', privateKey: kv.privateKey }; // already hex
+  }
+
+  // ED25519 via Transit export
+  const res = await vaultClient.get(`/v1/transit/export/signing-key/${name}`);
+  const versions = res.data.data.keys;
+  // Return the latest version as hex
+  const latestVersion = Object.keys(versions).sort((a, b) => Number(b) - Number(a))[0];
+  const rawBytes = Buffer.from(versions[latestVersion], 'base64');
+  return { type: 'ed25519', privateKey: rawBytes.toString('hex') };
 }
 
 // Returns a synthetic info object compatible with the route layer for both key types
@@ -218,4 +235,4 @@ async function getAdminCredentials(username) {
   }
 }
 
-module.exports = { listKeys, createKey, getKeyInfo, getPublicKey, sign, deleteKey, getAdminCredentials };
+module.exports = { listKeys, createKey, getKeyInfo, getPublicKey, sign, deleteKey, exportKey, getAdminCredentials };
