@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { listKeys, createKey, getKeyDetail, deleteKey, exportKey } from '../services/api';
+import { listKeys, createKey, getKeyDetail, deleteKey, exportKey, importKey } from '../services/api';
 import Modal from '../components/Modal';
 
 const TYPE_BADGE = {
@@ -20,8 +20,16 @@ export default function Keys() {
   const [createError, setCreateError] = useState('');
 
   const [pubKeyModal, setPubKeyModal] = useState(null);
-  const [exportModal, setExportModal] = useState(null); // { name, type, privateKey } | null
-  const [exporting, setExporting] = useState(null); // key name being exported
+  const [exportModal, setExportModal] = useState(null);
+  const [exporting, setExporting] = useState(null);
+
+  const [showImport, setShowImport] = useState(false);
+  const [importName, setImportName] = useState('');
+  const [importType, setImportType] = useState('ed25519');
+  const [importPrivateKey, setImportPrivateKey] = useState('');
+  const [importExportable, setImportExportable] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState('');
 
   async function load() {
     setLoading(true);
@@ -63,6 +71,24 @@ export default function Keys() {
     }
   }
 
+  async function handleImport(e) {
+    e.preventDefault();
+    setImportError('');
+    setImporting(true);
+    try {
+      await importKey(importName.trim(), importType, importPrivateKey.trim(), importExportable);
+      setShowImport(false);
+      setImportName('');
+      setImportPrivateKey('');
+      setImportExportable(false);
+      await load();
+    } catch (e) {
+      setImportError(e.response?.data?.error || e.message);
+    } finally {
+      setImporting(false);
+    }
+  }
+
   async function handleExport(key) {
     setExporting(key.name);
     try {
@@ -89,12 +115,20 @@ export default function Keys() {
     <div className="max-w-3xl">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Vault Keys</h1>
-        <button
-          onClick={() => { setShowCreate(true); setCreateError(''); setNewKeyName(''); }}
-          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded text-sm font-medium"
-        >
-          + Create Key
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => { setShowImport(true); setImportError(''); setImportName(''); setImportPrivateKey(''); }}
+            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm font-medium"
+          >
+            Import Key
+          </button>
+          <button
+            onClick={() => { setShowCreate(true); setCreateError(''); setNewKeyName(''); }}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded text-sm font-medium"
+          >
+            + Create Key
+          </button>
+        </div>
       </div>
 
       {loading && <p className="text-gray-400 text-sm">Loading…</p>}
@@ -189,6 +223,75 @@ export default function Keys() {
               <button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 text-sm text-gray-400 hover:text-white">Cancel</button>
               <button type="submit" disabled={creating} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 rounded text-sm font-medium">
                 {creating ? 'Creating…' : 'Create'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {showImport && (
+        <Modal title="Import Key" onClose={() => setShowImport(false)}>
+          <form onSubmit={handleImport} className="space-y-4">
+            <div className="flex items-start gap-2 bg-gray-900 border border-gray-700 rounded p-3">
+              <span className="text-gray-400 text-lg leading-none">ℹ</span>
+              <p className="text-xs text-gray-400">
+                Paste an existing private key to store it in Vault. ED25519 keys are imported into Transit (key stays in Vault). ECDSA keys are stored encrypted in Vault KV.
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">Key Name</label>
+              <input
+                type="text"
+                placeholder="my-imported-key"
+                value={importName}
+                onChange={(e) => setImportName(e.target.value)}
+                required
+                autoFocus
+                className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">Key Type</label>
+              <select
+                value={importType}
+                onChange={(e) => setImportType(e.target.value)}
+                className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+              >
+                <option value="ed25519">ED25519</option>
+                <option value="ecdsa">ECDSA (secp256k1)</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">Private Key (hex)</label>
+              <textarea
+                placeholder="0x... or raw hex (32 bytes)"
+                value={importPrivateKey}
+                onChange={(e) => setImportPrivateKey(e.target.value)}
+                required
+                rows={3}
+                className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-indigo-500 resize-none"
+              />
+            </div>
+            {importType === 'ed25519' && (
+              <div className="flex items-start gap-3">
+                <input
+                  id="import-exportable"
+                  type="checkbox"
+                  checked={importExportable}
+                  onChange={(e) => setImportExportable(e.target.checked)}
+                  className="mt-0.5 accent-indigo-500"
+                />
+                <label htmlFor="import-exportable" className="text-sm text-gray-300 cursor-pointer">
+                  Allow private key export
+                  <p className="text-xs text-amber-400 mt-0.5">Cannot be changed after import.</p>
+                </label>
+              </div>
+            )}
+            {importError && <p className="text-red-400 text-sm">{importError}</p>}
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setShowImport(false)} className="px-4 py-2 text-sm text-gray-400 hover:text-white">Cancel</button>
+              <button type="submit" disabled={importing} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 rounded text-sm font-medium">
+                {importing ? 'Importing…' : 'Import'}
               </button>
             </div>
           </form>

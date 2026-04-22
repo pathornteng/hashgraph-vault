@@ -4,11 +4,13 @@ import Logo from './components/Logo';
 import Keys from './pages/Keys';
 import Accounts from './pages/Accounts';
 import Transfer from './pages/Transfer';
+import Tokens from './pages/Tokens';
 import Login from './pages/Login';
 
 const nav = [
   { to: '/keys', label: 'Keys' },
   { to: '/accounts', label: 'Accounts' },
+  { to: '/tokens', label: 'Tokens' },
   { to: '/transfer', label: 'Transfer' },
 ];
 
@@ -58,6 +60,7 @@ function Layout() {
           <Route path="/" element={<Navigate to="/keys" replace />} />
           <Route path="/keys" element={<Keys />} />
           <Route path="/accounts" element={<Accounts />} />
+          <Route path="/tokens" element={<Tokens />} />
           <Route path="/transfer" element={<Transfer />} />
         </Routes>
       </main>

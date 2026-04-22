@@ -6,6 +6,7 @@ const authRouter = require('./routes/auth');
 const keysRouter = require('./routes/keys');
 const accountsRouter = require('./routes/accounts');
 const transactionsRouter = require('./routes/transactions');
+const tokensRouter = require('./routes/tokens');
 
 const app = express();
 
@@ -16,6 +17,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/keys', keysRouter);
 app.use('/api/accounts', accountsRouter);
 app.use('/api/transactions', transactionsRouter);
+app.use('/api/tokens', tokensRouter);
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 

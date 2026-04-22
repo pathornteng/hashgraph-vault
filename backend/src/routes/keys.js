@@ -63,6 +63,21 @@ router.get('/:name/export', async (req, res, next) => {
   }
 });
 
+// POST /api/keys/:name/import — import an existing private key
+router.post('/:name/import', async (req, res, next) => {
+  try {
+    const { type = 'ed25519', privateKey, exportable = false } = req.body;
+    if (!privateKey) return res.status(400).json({ error: 'privateKey is required' });
+    if (!['ed25519', 'ecdsa'].includes(type)) {
+      return res.status(400).json({ error: 'type must be ed25519 or ecdsa' });
+    }
+    await vaultService.importKey(req.params.name, type, privateKey, exportable);
+    res.status(201).json({ name: req.params.name, type, imported: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // DELETE /api/keys/:name — delete a key
 router.delete('/:name', async (req, res, next) => {
   try {

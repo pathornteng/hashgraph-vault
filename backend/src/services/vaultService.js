@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const axios = require('axios');
 const { PublicKey } = require('@hashgraph/sdk');
 const { keccak256 } = require('ethereum-cryptography/keccak');
@@ -223,6 +224,79 @@ async function deleteKey(name) {
   await vaultClient.delete(`/v1/transit/keys/${name}`);
 }
 
+// ─── Key Import ──────────────────────────────────────────────────────────────
+
+// RFC 3394 AES-256 Key Wrap (used to wrap key material before Transit import)
+function rfc3394Wrap(kek, plaintext) {
+  const n = plaintext.length / 8;
+  let a = Buffer.alloc(8, 0xa6); // default IV
+  const r = Array.from({ length: n }, (_, i) => Buffer.from(plaintext.subarray(i * 8, (i + 1) * 8)));
+
+  for (let j = 0; j <= 5; j++) {
+    for (let i = 0; i < n; i++) {
+      const cipher = crypto.createCipheriv('aes-256-ecb', kek, null);
+      cipher.setAutoPadding(false);
+      const b = Buffer.concat([cipher.update(Buffer.concat([a, r[i]])), cipher.final()]);
+      a = Buffer.from(b.subarray(0, 8));
+      const t = n * j + (i + 1);
+      a[4] ^= (t >>> 24) & 0xff;
+      a[5] ^= (t >>> 16) & 0xff;
+      a[6] ^= (t >>> 8) & 0xff;
+      a[7] ^= t & 0xff;
+      r[i] = Buffer.from(b.subarray(8, 16));
+    }
+  }
+  return Buffer.concat([a, ...r]);
+}
+
+async function importKey(name, type, privateKeyHex, exportable = false) {
+  const privateKeyBytes = Buffer.from(privateKeyHex.replace(/^0x/, ''), 'hex');
+
+  if (type === 'ecdsa') {
+    if (privateKeyBytes.length !== 32) throw Object.assign(new Error('secp256k1 private key must be 32 bytes'), { status: 400 });
+    const publicKey = secp256k1.getPublicKey(privateKeyBytes, true);
+    await vaultClient.post(`/v1/${ECDSA_KV_DATA}/${name}`, {
+      data: {
+        type: 'secp256k1',
+        privateKey: privateKeyBytes.toString('hex'),
+        publicKey: Buffer.from(publicKey).toString('hex'),
+        createdAt: new Date().toISOString(),
+      },
+    });
+    keyTypeCache.set(name, 'secp256k1');
+    return;
+  }
+
+  // ED25519: wrap key material and import into Vault Transit
+  if (privateKeyBytes.length !== 32) throw Object.assign(new Error('ed25519 private key must be 32 bytes'), { status: 400 });
+
+  // 1. Get Vault's RSA-4096 wrapping public key
+  const wkRes = await vaultClient.get('/v1/transit/wrapping_key');
+  const wrappingKeyPem = wkRes.data.data.public_key;
+
+  // 2. Generate ephemeral AES-256 key encryption key (KEK)
+  const kek = crypto.randomBytes(32);
+
+  // 3. Wrap the private key bytes with AES-256-KW (RFC 3394)
+  const wrappedKey = rfc3394Wrap(kek, privateKeyBytes);
+
+  // 4. Encrypt the KEK with Vault's RSA-4096 wrapping key (OAEP + SHA-256)
+  const encryptedKek = crypto.publicEncrypt(
+    { key: wrappingKeyPem, padding: crypto.constants.RSA_PKCS1_OAEP_PADDING, oaepHash: 'sha256' },
+    kek
+  );
+
+  // 5. Ciphertext = RSA(KEK) || AES-KW(private key)
+  const ciphertext = Buffer.concat([encryptedKek, wrappedKey]).toString('base64');
+
+  await vaultClient.post(`/v1/transit/keys/${name}/import`, {
+    type: 'ed25519',
+    ciphertext,
+    exportable,
+  });
+  keyTypeCache.set(name, 'ed25519');
+}
+
 const ADMIN_KV_DATA = 'secret/data/admin-users';
 
 async function getAdminCredentials(username) {
@@ -235,4 +309,4 @@ async function getAdminCredentials(username) {
   }
 }
 
-module.exports = { listKeys, createKey, getKeyInfo, getPublicKey, sign, deleteKey, exportKey, getAdminCredentials };
+module.exports = { listKeys, createKey, importKey, getKeyInfo, getPublicKey, sign, deleteKey, exportKey, getAdminCredentials };

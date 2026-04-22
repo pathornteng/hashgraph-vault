@@ -3,6 +3,10 @@ const {
   AccountCreateTransaction,
   TransferTransaction,
   AccountBalanceQuery,
+  TokenCreateTransaction,
+  TokenAssociateTransaction,
+  TokenType,
+  TokenId,
   AccountId,
   Hbar,
   PrivateKey,
@@ -126,4 +130,67 @@ async function getBalance(accountId) {
   return balance.hbars.toString();
 }
 
-module.exports = { buildClient, createAccount, transferHbar, getBalance };
+async function createToken(accountId, vaultKeyName, { name, symbol, decimals = 0, initialSupply = 0, tokenType = 'fungible' }) {
+  const client = await buildClient(accountId, vaultKeyName);
+  const publicKey = await vaultService.getPublicKey(vaultKeyName);
+
+  const tx = await new TokenCreateTransaction()
+    .setTokenName(name)
+    .setTokenSymbol(symbol)
+    .setDecimals(decimals)
+    .setInitialSupply(initialSupply)
+    .setTreasuryAccountId(AccountId.fromString(accountId))
+    .setAdminKey(publicKey)
+    .setSupplyKey(publicKey)
+    .setTokenType(tokenType === 'nft' ? TokenType.NonFungibleUnique : TokenType.FungibleCommon)
+    .setNodeAccountIds([new AccountId(3)])
+    .freezeWith(client);
+
+  const response = await tx.execute(client);
+  const receipt = await response.getReceipt(client);
+  client.close();
+
+  return receipt.tokenId.toString();
+}
+
+async function associateToken(accountId, vaultKeyName, tokenId) {
+  const client = await buildClient(accountId, vaultKeyName);
+
+  const tx = await new TokenAssociateTransaction()
+    .setAccountId(AccountId.fromString(accountId))
+    .setTokenIds([TokenId.fromString(tokenId)])
+    .setNodeAccountIds([new AccountId(3)])
+    .freezeWith(client);
+
+  const response = await tx.execute(client);
+  const receipt = await response.getReceipt(client);
+  client.close();
+
+  return receipt.status.toString();
+}
+
+async function getAccountTokens(accountId) {
+  const client = await buildOperatorClient();
+
+  const balance = await new AccountBalanceQuery()
+    .setAccountId(AccountId.fromString(accountId))
+    .execute(client);
+
+  client.close();
+
+  const tokens = [];
+  // TokenBalanceMap / TokenDecimalMap are not standard Maps — iterate via _map
+  if (balance.tokens?._map) {
+    for (const [tokenId, amount] of balance.tokens._map) {
+      const decimals = balance.tokenDecimals?._map?.get(tokenId);
+      tokens.push({
+        tokenId,
+        balance: amount.toString(),
+        decimals: decimals != null ? Number(decimals) : 0,
+      });
+    }
+  }
+  return tokens;
+}
+
+module.exports = { buildClient, createAccount, transferHbar, getBalance, createToken, associateToken, getAccountTokens };
