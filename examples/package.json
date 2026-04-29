@@ -1,0 +1,15 @@
+{
+  "name": "vault-hedera-example",
+  "version": "1.0.0",
+  "description": "Example: create Vault keys and Hedera accounts",
+  "main": "create-account.js",
+  "scripts": {
+    "start": "node create-account.js"
+  },
+  "dependencies": {
+    "@hashgraph/sdk": "^2.40.0",
+    "axios": "^1.6.0",
+    "dotenv": "^16.4.0",
+    "ethereum-cryptography": "^2.2.1"
+  }
+}
